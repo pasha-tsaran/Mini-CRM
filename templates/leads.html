@@ -1,0 +1,88 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="page-heading">
+  <div><p class="eyebrow">РАБОТА С КЛИЕНТАМИ</p><h1>Заявки</h1><p class="muted">Принимайте обращения и следите за их статусом.</p></div>
+  <a class="button secondary" href="#lead-form">+ Добавить заявку</a>
+</div>
+<div id="notification" class="notification" role="status" hidden></div>
+<noscript><p class="notification">Для добавления заявок и изменения статусов включите JavaScript в браузере.</p></noscript>
+<section class="statistics" aria-label="Статистика всех заявок">
+  <article class="stat-card total"><span>Всего заявок</span><strong data-stat="total">{{ statistics.total }}</strong><small>За всё время</small></article>
+  {% for status, label in status_labels.items() %}
+  <article class="stat-card"><span><i class="status-dot {{ status }}" aria-hidden="true"></i>{{ label }}</span><strong data-stat="{{ status }}">{{ statistics[status] }}</strong><small>Заявок в этом статусе</small></article>
+  {% endfor %}
+</section>
+<div class="work-area">
+  <section class="panel create-panel" aria-labelledby="form-heading">
+    <div class="panel-heading"><h2 id="form-heading">Новая заявка</h2><p class="muted">Заполните данные клиента.</p></div>
+    <form id="lead-form" action="{{ url_for('leads.create_lead') }}" method="post" novalidate>
+      <fieldset>
+        <legend class="sr-only">Данные заявки</legend>
+        <label for="name">Имя <span aria-hidden="true">*</span></label>
+        <input id="name" name="name" type="text" autocomplete="name" maxlength="100" placeholder="Например, Иван" required aria-describedby="name-error">
+        <p class="field-error" id="name-error" aria-live="polite"></p>
+        <label for="phone">Телефон <span aria-hidden="true">*</span></label>
+        <input id="phone" name="phone" type="tel" autocomplete="tel" placeholder="+7 999 123-45-67" required aria-describedby="phone-hint phone-error">
+        <p class="hint" id="phone-hint">Можно начать с +7 или 8.</p>
+        <p class="field-error" id="phone-error" aria-live="polite"></p>
+        <label for="message">Сообщение <span aria-hidden="true">*</span></label>
+        <textarea id="message" name="message" rows="5" maxlength="2000" placeholder="Чем можем помочь клиенту?" required aria-describedby="message-hint message-error"></textarea>
+        <p class="hint" id="message-hint">До 2 000 символов.</p>
+        <p class="field-error" id="message-error" aria-live="polite"></p>
+        <p class="form-error" role="alert" hidden></p>
+        <button class="button primary" type="submit">Создать заявку <span aria-hidden="true">↗</span></button>
+        <p class="hint required-note">Все поля обязательны.</p>
+      </fieldset>
+    </form>
+  </section>
+  <section class="panel list-panel" aria-labelledby="list-heading">
+    <div class="list-heading"><div><h2 id="list-heading">Все заявки <span class="count-badge">{{ page.total }}</span></h2><p class="muted">Сначала новые · время {{ timezone }}</p></div></div>
+    {% if page.items %}
+    <div class="table-wrap" tabindex="0" aria-label="Таблица заявок">
+      <table>
+        <thead><tr><th scope="col">№</th><th scope="col">Имя</th><th scope="col">Телефон</th><th scope="col">Сообщение</th><th scope="col">Статус</th><th scope="col">Дата</th><th scope="col">Источник</th><th scope="col">Telegram</th></tr></thead>
+        <tbody>
+        {% for lead in page.items %}
+          <tr>
+            <td data-label="Номер" class="lead-number">№ {{ lead.id }}</td>
+            <td data-label="Имя" class="lead-name">{{ lead.name }}</td>
+            <td data-label="Телефон" class="phone-cell"><a href="tel:{{ lead.phone }}">{{ lead.phone }}</a></td>
+            <td data-label="Сообщение" class="message-cell">{{ lead.message }}</td>
+            <td data-label="Статус">
+              <form class="status-form" action="{{ url_for('leads.update_status', lead_id=lead.id) }}" method="post" novalidate>
+                <span class="status-label {{ lead.status }}">{{ status_labels[lead.status] }}</span>
+                <label class="sr-only" for="status-{{ lead.id }}">Статус заявки № {{ lead.id }}</label>
+                <select id="status-{{ lead.id }}" name="status" aria-describedby="status-error-{{ lead.id }}">
+                  {% for status, label in status_labels.items() %}<option value="{{ status }}" {% if lead.status == status %}selected{% endif %}>{{ label }}</option>{% endfor %}
+                </select>
+                <button class="save-status" type="submit" aria-label="Сохранить статус заявки № {{ lead.id }}">Сохранить</button>
+                <p id="status-error-{{ lead.id }}" class="form-error" role="alert" hidden></p>
+              </form>
+            </td>
+            <td data-label="Дата" class="date-cell"><time datetime="{{ lead.created_at.isoformat() }}">{{ lead.created_at | local_date }}</time></td>
+            <td data-label="Источник">{{ 'Telegram' if channels[lead.id].source == 'telegram' else 'Сайт' }}</td>
+            <td data-label="Telegram" class="telegram-cell">
+              <span>{{ {'none': 'Не подключены', 'active': 'Подключены', 'blocked': 'Бот заблокирован'}[channels[lead.id].subscription] }}</span>
+              {% if channels[lead.id].delivery %}<small>Доставка: {{ {'pending': 'ожидает', 'processing': 'ожидает', 'retry': 'ошибка, повтор ожидает', 'sent': 'отправлено', 'failed': 'ошибка', 'blocked': 'ошибка'}[channels[lead.id].delivery] }}</small>{% endif %}
+            </td>
+          </tr>
+        {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% else %}
+    <div class="empty-state"><span class="empty-icon" aria-hidden="true">＋</span>
+      {% if page.total == 0 %}<h3>Заявок пока нет</h3><p>Добавьте первую заявку — она появится здесь.</p>
+      {% else %}<h3>На этой странице нет заявок</h3><p><a href="{{ url_for('views.leads_page', limit=page.limit) }}">Вернуться к началу списка</a></p>{% endif %}
+    </div>
+    {% endif %}
+    <nav class="pagination" aria-label="Страницы заявок">
+      <span>{% if page_number <= page_count %}Страница {{ page_number }} из {{ page_count }}{% else %}Всего страниц: {{ page_count }}{% endif %} · по {{ page.limit }}</span>
+      <div>
+        {% if page.offset > 0 %}<a class="page-link" href="{{ url_for('views.leads_page', limit=page.limit, offset=previous_offset) }}">← Предыдущая</a>{% else %}<span class="page-link disabled" aria-disabled="true">← Предыдущая</span>{% endif %}
+        {% if next_offset < page.total %}<a class="page-link" href="{{ url_for('views.leads_page', limit=page.limit, offset=next_offset) }}">Следующая →</a>{% else %}<span class="page-link disabled" aria-disabled="true">Следующая →</span>{% endif %}
+      </div>
+    </nav>
+  </section>
+</div>
+{% endblock %}

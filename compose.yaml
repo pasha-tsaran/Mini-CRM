@@ -1,0 +1,77 @@
+name: mini-crm
+
+x-runtime: &runtime
+  image: mini-crm:${CRM_IMAGE_TAG:-local}
+  build:
+    context: .
+    target: runtime
+  restart: unless-stopped
+  init: true
+  read_only: true
+  tmpfs:
+    - /tmp:size=64m,mode=1777
+  cap_drop: [ALL]
+  security_opt: [no-new-privileges:true]
+  pids_limit: 128
+  mem_limit: 384m
+  stop_grace_period: 40s
+  logging:
+    driver: json-file
+    options:
+      max-size: 10m
+      max-file: "3"
+
+services:
+  crm:
+    <<: *runtime
+    ports:
+      - "127.0.0.1:${CRM_PORT:-5000}:5000"
+    environment:
+      DATABASE_PATH: /data/crm.sqlite3
+      UI_TIMEZONE: ${UI_TIMEZONE:-Europe/Moscow}
+      TELEGRAM_BOT_USERNAME: ${TELEGRAM_BOT_USERNAME:-}
+      CRM_BOT_API_TOKEN: ${CRM_BOT_API_TOKEN:-}
+    volumes:
+      - crm-data:/data
+    healthcheck:
+      test: [CMD, python, -c, "import urllib.request; urllib.request.urlopen('http://127.0.0.1:5000/healthz', timeout=3).close()"]
+      interval: 15s
+      timeout: 5s
+      start_period: 20s
+      retries: 4
+
+  bot:
+    <<: *runtime
+    profiles: [telegram]
+    command: [python, -m, bot.main]
+    environment:
+      TELEGRAM_BOT_TOKEN: ${TELEGRAM_BOT_TOKEN:-}
+      TELEGRAM_BOT_USERNAME: ${TELEGRAM_BOT_USERNAME:-}
+      CRM_BOT_API_TOKEN: ${CRM_BOT_API_TOKEN:-}
+      CRM_BASE_URL: http://crm:5000
+      BOT_STATE_PATH: /bot-state/bot-state.sqlite3
+    volumes:
+      - bot-data:/bot-state
+    depends_on:
+      crm:
+        condition: service_healthy
+        restart: true
+
+  notifications:
+    <<: *runtime
+    profiles: [telegram]
+    command: [python, -m, workers.notifications]
+    environment:
+      TELEGRAM_BOT_TOKEN: ${TELEGRAM_BOT_TOKEN:-}
+      DATABASE_PATH: /data/crm.sqlite3
+      UI_TIMEZONE: ${UI_TIMEZONE:-Europe/Moscow}
+    volumes:
+      - crm-data:/data
+    depends_on:
+      crm:
+        condition: service_healthy
+        restart: true
+
+volumes:
+  crm-data:
+  bot-data:

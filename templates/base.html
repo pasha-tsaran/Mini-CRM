@@ -1,0 +1,19 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{% block title %}Заявки · Мини-CRM{% endblock %}</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/styles.css') }}">
+  <script src="{{ url_for('static', filename='js/leads.js') }}" defer></script>
+</head>
+<body>
+  <a class="skip-link" href="#main">Перейти к содержимому</a>
+  <header class="topbar">
+    <a class="brand" href="{{ url_for('views.leads_page') }}"><span class="brand-mark" aria-hidden="true">м</span> Мини-CRM</a>
+    <span class="workspace-label">Рабочее пространство</span>
+  </header>
+  <main id="main">{% block content %}{% endblock %}</main>
+  <footer class="footer">Мини-CRM <span aria-hidden="true">·</span> Все заявки под рукой</footer>
+</body>
+</html>
